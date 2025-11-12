@@ -198,3 +198,53 @@ def jogar(sock):
             print("\nSaindo do jogo...")
             jogo_ativo = False
             break
+
+def conectar_ao_servidor():
+    """Conecta ao servidor e inicia o jogo"""
+    global jogo_ativo
+   
+    try:
+        # Cria o socket e conecta ao servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((HOST, PORTA))
+       
+        print("=" * 50)
+        print("    BATTLE MEMORY - BATALHA DE TANQUES")
+        print("=" * 50)
+        print(f"Conectado ao servidor {HOST}:{PORTA}\n")
+       
+        # Inicia a thread que recebe mensagens do servidor
+        thread_receber = threading.Thread(target=receber_mensagens, args=(sock,))
+        thread_receber.daemon = True
+        thread_receber.start()
+       
+        # Aguarda um pouco para receber mensagens iniciais
+        time.sleep(1)
+       
+        # Fase de posicionamento dos tanques
+        if not posicionar_tanques(sock):
+            return
+       
+        # Aguarda o jogo começar
+        while numero_jogador is None:
+            time.sleep(0.1)
+       
+        # Loop principal do jogo
+        jogar(sock)
+       
+        # Aguarda um pouco antes de fechar
+        time.sleep(2)
+        sock.close()
+   
+    except ConnectionRefusedError:
+        print("Erro: Não foi possível conectar ao servidor.")
+        print("Verifique se o servidor está rodando!")
+    except Exception as erro:
+        print(f"Erro inesperado: {erro}")
+    finally:
+        jogo_ativo = False
+
+
+if _name_ == "_main_":
+    conectar_ao_servidor()
+
