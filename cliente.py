@@ -245,6 +245,6 @@ def conectar_ao_servidor():
         jogo_ativo = False
 
 
-if _name_ == "_main_":
+if __name__ == "_main_":
     conectar_ao_servidor()
 
