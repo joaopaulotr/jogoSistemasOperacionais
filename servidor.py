@@ -17,8 +17,11 @@ jogadores_prontos = 0
 
 lock_jogo = threading.Lock()
 
-# Armazena as conexoes dos clientes
+# Armazena as conexões dos clientes
 conexoes = {1: None, 2: None}
+
+# Buffers de recebimento por conexão
+buffers_conexao = {}
 
 # Variável para controlar se o jogo já começou
 jogo_iniciado = False
@@ -50,21 +53,64 @@ def validar_posicao(posicao):
 def enviar_mensagem(conexao, mensagem):
     """Envia uma mensagem JSON para o cliente"""
     try:
-        dados = json.dumps(mensagem)
-        conexao.send(dados.encode('utf-8'))
+        dados = json.dumps(mensagem) + "\n"
+        conexao.sendall(dados.encode('utf-8'))
+        return True
     except Exception as erro:
-        print(f"Erro ao enviar mensagem: {erro}")
+        print(f"Erro ao enviar mensagem (cliente desconectou?): {erro}")
+        return False
+
+
+def limpar_conexao_jogador(numero_jogador):
+    """Remove conexão de jogador desconectado e notifica o outro"""
+    with lock_jogo:
+        if conexoes[numero_jogador]:
+            conn_id = id(conexoes[numero_jogador])
+            buffers_conexao.pop(conn_id, None)
+            try:
+                conexoes[numero_jogador].close()
+            except:
+                pass
+            conexoes[numero_jogador] = None
+        
+        # Notifica o outro jogador
+        outro_jogador = 3 - numero_jogador
+        conexao_outro = conexoes.get(outro_jogador)
+    
+    if conexao_outro:
+        enviar_mensagem(conexao_outro, {
+            "tipo": "ERRO",
+            "mensagem": f"Jogador {numero_jogador} desconectou. Jogo encerrado."
+        })
 
 
 def receber_mensagem(conexao):
     """Recebe e decodifica uma mensagem JSON do cliente"""
+    # Usa id da conexão como chave para o buffer
+    conn_id = id(conexao)
+    buffer = buffers_conexao.get(conn_id, '')
+    
     try:
-        dados = conexao.recv(1024).decode('utf-8')
-        if dados:
-            return json.loads(dados)
+        while "\n" not in buffer:
+            chunk = conexao.recv(1024).decode('utf-8')
+            if not chunk:
+                # Limpa buffer ao desconectar
+                buffers_conexao.pop(conn_id, None)
+                return None
+            buffer += chunk
+        
+        linha, buffer = buffer.split("\n", 1)
+        buffers_conexao[conn_id] = buffer
+        
+        if linha.strip():
+            return json.loads(linha)
+        return None
+    except socket.timeout:
+        print(f"Timeout ao receber mensagem - cliente inativo")
         return None
     except Exception as erro:
         print(f"Erro ao receber mensagem: {erro}")
+        buffers_conexao.pop(conn_id, None)
         return None
 
 
@@ -117,8 +163,12 @@ def montar_visao_tabuleiro(numero_jogador):
 
 def atualizar_visao_jogadores():
     """Envia atualização dos tabuleiros para ambos jogadores"""
+    # Copia conexões sob lock para evitar condição de corrida
+    with lock_jogo:
+        conexoes_copy = dict(conexoes)
+    
     for num_jogador in [1, 2]:
-        if conexoes[num_jogador]:
+        if conexoes_copy[num_jogador]:
             meu_tab, inimigo_tab = montar_visao_tabuleiro(num_jogador)
             mensagem = {
                 "tipo": "ATUALIZAR",
@@ -127,14 +177,14 @@ def atualizar_visao_jogadores():
                 "tanques_meus": tanques_restantes[num_jogador],
                 "tanques_inimigo": tanques_restantes[3 - num_jogador]
             }
-            enviar_mensagem(conexoes[num_jogador], mensagem)
+            enviar_mensagem(conexoes_copy[num_jogador], mensagem)
 
 
 def processar_ataque(numero_jogador, posicao):
     """Processa um ataque de um jogador"""
     global vez_do_jogador, tanques_restantes
    
-    # Usar lock para exclusão mútua - apenas uma thread por vez
+    # Usar lock para exclusão mútua
     with lock_jogo:
         # Verifica se é a vez deste jogador
         if vez_do_jogador != numero_jogador:
@@ -172,23 +222,61 @@ def processar_ataque(numero_jogador, posicao):
        
         # Alterna a vez para o outro jogador
         vez_do_jogador = 3 - numero_jogador
-       
-        # Atualiza a visão de ambos os jogadores
-        atualizar_visao_jogadores()
-       
+        proximo_jogador = vez_do_jogador
+        
         # Verifica se alguém ganhou
         if tanques_restantes[3 - numero_jogador] == 0:
-            return {"tipo": "FIM_DE_JOGO", "resultado": resultado, "vencedor": f"Jogador {numero_jogador}"}
-       
-        return {"tipo": "RESULTADO", "mensagem": resultado}
+            print(f"\n*** JOGO TERMINADO - Jogador {numero_jogador} venceu! ***")
+            # Atualiza visão antes de terminar (ainda dentro do lock)
+            # Copia conexões para usar fora do lock
+            conexoes_fim = dict(conexoes)
+    
+    # Sai do lock antes de enviar mensagens
+    
+    # Se alguém ganhou, envia FIM_DE_JOGO para AMBOS
+    if tanques_restantes[3 - numero_jogador] == 0:
+        atualizar_visao_jogadores()
+        
+        mensagem_fim = {
+            "tipo": "FIM_DE_JOGO", 
+            "resultado": resultado, 
+            "vencedor": f"Jogador {numero_jogador}"
+        }
+        
+        # Envia para AMBOS jogadores
+        for num in [1, 2]:
+            if conexoes_fim.get(num):
+                print(f"Enviando FIM_DE_JOGO para Jogador {num}")
+                enviar_mensagem(conexoes_fim[num], mensagem_fim)
+        
+        return mensagem_fim
+    
+    # Atualiza a visão de ambos os jogadores (fora do lock)
+    atualizar_visao_jogadores()
+    
+    # Notifica o próximo jogador que é sua vez (fora do lock)
+    with lock_jogo:
+        conexao_proxima = conexoes.get(proximo_jogador)
+    
+    if conexao_proxima:
+        enviar_mensagem(conexao_proxima, {"tipo": "SUA_VEZ", "mensagem": "É a sua vez de atacar!"})
+    
+    return {"tipo": "RESULTADO", "mensagem": resultado}
 
 
 def gerenciar_cliente(conexao, numero_jogador):
     """Thread que gerencia a comunicação com um cliente"""
     global jogadores_prontos, jogo_iniciado
-   
+    
+    # Define timeout de 60 segundos para detectar clientes travados
+    conexao.settimeout(60.0)
+    
     print(f"Jogador {numero_jogador} conectado!")
-   
+    
+    # Registra a conexão sob lock
+    with lock_jogo:
+        conexoes[numero_jogador] = conexao
+    
     # Envia mensagem de boas-vindas
     mensagem_boas_vindas = {
         "tipo": "BEM_VINDO",
@@ -196,10 +284,16 @@ def gerenciar_cliente(conexao, numero_jogador):
         "numero_jogador": numero_jogador
     }
     enviar_mensagem(conexao, mensagem_boas_vindas)
-   
+    
     # Aguarda o outro jogador se conectar
-    while not all(conexoes.values()):
+    while True:
+        with lock_jogo:
+            if all(conexoes.values()):
+                break
         time.sleep(0.5)
+    
+    # Aguarda um tempo para garantir que ambos receberam a mensagem de boas-vindas
+    time.sleep(0.5)
    
     # Solicita posicionamento dos tanques
     mensagem_posicionar = {
@@ -212,7 +306,13 @@ def gerenciar_cliente(conexao, numero_jogador):
     posicoes_recebidas = []
     while len(posicoes_recebidas) < 3:
         resposta = receber_mensagem(conexao)
-        if resposta and resposta.get("tipo") == "POSICAO_TANQUE":
+        
+        if not resposta:
+            print(f"Jogador {numero_jogador} desconectou durante posicionamento")
+            limpar_conexao_jogador(numero_jogador)
+            return
+        
+        if resposta.get("tipo") == "POSICAO_TANQUE":
             pos = resposta.get("posicao", "").upper()
            
             if not validar_posicao(pos):
@@ -239,43 +339,80 @@ def gerenciar_cliente(conexao, numero_jogador):
         print(f"Jogador {numero_jogador} finalizou posicionamento: {posicoes_recebidas}")
    
     # Aguarda ambos jogadores finalizarem o posicionamento
-    while jogadores_prontos < 2:
+    while True:
+        with lock_jogo:
+            if jogadores_prontos >= 2:
+                break
         time.sleep(0.5)
    
-    # Inicia o jogo
-    if not jogo_iniciado:
-        jogo_iniciado = True
-        print("\n=== JOGO INICIADO ===\n")
-   
-    enviar_mensagem(conexao, {"tipo": "JOGO_INICIADO", "mensagem": "O jogo começou!"})
-    atualizar_visao_jogadores()
+    # Inicia o jogo - só uma vez para ambos
+    with lock_jogo:
+        if not jogo_iniciado:
+            jogo_iniciado = True
+            print("\n=== JOGO INICIADO ===\n")
+            # Copia conexões para notificar fora do lock
+            conexoes_copy = dict(conexoes)
+        else:
+            conexoes_copy = None
+    
+    # Notifica fora do lock para evitar deadlock
+    if conexoes_copy:
+        for num in [1, 2]:
+            if conexoes_copy[num]:
+                enviar_mensagem(conexoes_copy[num], {"tipo": "JOGO_INICIADO", "mensagem": "O jogo começou!"})
+        # Atualiza a visão dos tabuleiros
+        atualizar_visao_jogadores()
+        # Notifica o Jogador 1 que é sua vez
+        if conexoes_copy[1]:
+            enviar_mensagem(conexoes_copy[1], {"tipo": "SUA_VEZ", "mensagem": "É a sua vez de atacar!"})
+    else:
+        # Se o jogo já foi iniciado, apenas aguarda
+        time.sleep(0.5)
    
     # Loop principal do jogo
-    while tanques_restantes[1] > 0 and tanques_restantes[2] > 0:
-        # Informa de quem é a vez
-        if vez_do_jogador == numero_jogador:
-            enviar_mensagem(conexao, {"tipo": "SUA_VEZ", "mensagem": "É a sua vez de atacar!"})
-       
+    jogo_em_andamento = True
+    while jogo_em_andamento:
         # Recebe ações do cliente
         mensagem = receber_mensagem(conexao)
        
         if not mensagem:
+            print(f"Jogador {numero_jogador} desconectou durante o jogo")
+            limpar_conexao_jogador(numero_jogador)
             break
        
         if mensagem.get("tipo") == "ATAQUE":
             posicao = mensagem.get("posicao", "")
             resultado = processar_ataque(numero_jogador, posicao)
-            enviar_mensagem(conexao, resultado)
+            
+            # Tenta enviar resultado
+            if not enviar_mensagem(conexao, resultado):
+                print(f"Jogador {numero_jogador} desconectou ao enviar resultado")
+                limpar_conexao_jogador(numero_jogador)
+                break
+            
+            # Se foi ERRO (posição inválida, já atacada, etc), mantém a vez do jogador
+            if resultado.get("tipo") == "ERRO":
+                enviar_mensagem(conexao, {"tipo": "SUA_VEZ", "mensagem": "É a sua vez de atacar!"})
+                continue
            
-            # Se o jogo terminou, notifica o outro jogador
+            # Se o jogo terminou, sai do loop (FIM_DE_JOGO já foi enviado por processar_ataque)
             if resultado.get("tipo") == "FIM_DE_JOGO":
-                outro_jogador = 3 - numero_jogador
-                if conexoes[outro_jogador]:
-                    enviar_mensagem(conexoes[outro_jogador], resultado)
+                print(f"Thread do Jogador {numero_jogador} encerrando - jogo finalizado")
                 break
    
     print(f"Jogador {numero_jogador} desconectado")
-    conexao.close()
+    
+    # Limpa a conexão e buffer ao final
+    conn_id = id(conexao)
+    buffers_conexao.pop(conn_id, None)
+    
+    with lock_jogo:
+        if conexoes[numero_jogador]:
+            try:
+                conexao.close()
+            except:
+                pass
+            conexoes[numero_jogador] = None
 
 
 def iniciar_servidor():
@@ -294,12 +431,11 @@ def iniciar_servidor():
     # Aceita conexões dos dois jogadores
     for numero_jogador in [1, 2]:
         conexao, endereco = servidor.accept()
-        conexoes[numero_jogador] = conexao
-       
-        # Cria uma thread para gerenciar este cliente (concorrência)
+        
+        # Cria uma thread para gerenciar este cliente (a conexão será registrada na thread)
         thread_cliente = threading.Thread(target=gerenciar_cliente, args=(conexao, numero_jogador))
         thread_cliente.start()
-   
+    
     print("Dois jogadores conectados! Partida em andamento...\n")
 
 
