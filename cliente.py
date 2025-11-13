@@ -37,8 +37,8 @@ def limpar_tela():
 def desenhar_tabuleiro(tabuleiro, titulo):
     """Desenha um tabuleiro formatado no terminal"""
     print(f"\n{titulo}")
-    print("   1  2  3  4  5")
-    linhas = ['A', 'B', 'C', 'D', 'E']
+    print("   1  2  3  4  5 6 7 8")
+    linhas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
     
     for linha in linhas:
         print(f"{linha} ", end="")
@@ -58,12 +58,15 @@ def desenhar_tabuleiro(tabuleiro, titulo):
 
 
 def enviar_mensagem(sock, mensagem):
-    """Envia uma mensagem JSON para o servidor"""
     try:
         dados = json.dumps(mensagem) + "\n"
         sock.sendall(dados.encode('utf-8'))
+    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+        print("⚠ conexão perdida com o servidor. encerrando jogo...")
+        global jogo_ativo
+        jogo_ativo = False
     except Exception as erro:
-        print(f"Erro ao enviar mensagem: {erro}")
+        print(f"erro ao enviar mensagem: {erro}")
 
 
 def receber_mensagens(sock):
@@ -80,7 +83,7 @@ def receber_mensagens(sock):
             
             buffer += chunk
             
-            # Processa todas as mensagens JSON completas (delimitadas por newline)
+           
             while "\n" in buffer:
                 linha, buffer = buffer.split("\n", 1)
                 
@@ -170,7 +173,7 @@ def receber_mensagens(sock):
                         if vencedor == f"Jogador {numero_jogador}":
                             print("     🏆 VITÓRIA! VOCÊ VENCEU A BATALHA! 🏆")
                         else:
-                            print("     💀 DERROTA! Seus tanques foram destruídos!")
+                            print(f"     💀 DERROTA! Seus {tanques_meus} tanques foram destruídos!")
                         print("=" * 50)
                         print("\nPressione Enter para sair...")
                         
@@ -200,7 +203,7 @@ def posicionar_tanques(sock):
     
     tanques_posicionados = 0
     
-    while tanques_posicionados < 3:
+    while tanques_posicionados < 3:0
         try:
             posicao = input(f"Tanque {tanques_posicionados + 1}/3: ").strip().upper()
             
