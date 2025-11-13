@@ -37,23 +37,23 @@ def limpar_tela():
 def desenhar_tabuleiro(tabuleiro, titulo):
     """Desenha um tabuleiro formatado no terminal"""
     print(f"\n{titulo}")
-    print("   1  2  3  4  5  6  7  8")
-    linhas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    print("    1   2   3   4   5   6   ")
+    linhas = ['A', 'B', 'C', 'D', 'E', 'F']
     
     for linha in linhas:
         print(f"{linha} ", end="")
-        for coluna in range(1, 6):
+        for coluna in range(1, 7):
             posicao = f"{linha}{coluna}"
             simbolo = tabuleiro.get(posicao, '~')
             
-            if simbolo == 'T':
-                print(f" T ", end="")
+            if simbolo == '⛵':
+                print(f" ⛵ ", end="")
             elif simbolo == 'X':
-                print(f" X ", end="")
+                print(f"  X ", end="")
             elif simbolo == 'O':
-                print(f" O ", end="")
+                print(f"  O ", end="")
             else:
-                print(f" ~ ", end="")
+                print(f"  ~ ", end="")
         print()
 
 
@@ -103,7 +103,7 @@ def receber_mensagens(sock):
                     
                     elif tipo == "POSICIONAR":
                         print(f"\n{mensagem.get('mensagem')}")
-                        print("Digite as posições uma por vez (ex: A1, B3, E5...H8)\n")
+                        print("Digite as posições uma por vez (ex: A1, B3, F6)\n")
                         evento_posicionar.set()
                     
                     elif tipo == "OK":
@@ -126,10 +126,10 @@ def receber_mensagens(sock):
                         print("=" * 50)
                         print(f"\nVocê é o Jogador {numero_jogador}")
                         print("\nLegenda:")
-                        print("  T = Seu tanque")
+                        print("  ⛵ = Seu tanque")
                         print("  X = Acerto")
                         print("  O = Erro (água)")
-                        print("  ~ = Desconhecido\n")
+                        print("   ~ = Desconhecido\n")
                         evento_jogo_iniciado.set()
                     
                     elif tipo == "ATUALIZAR":

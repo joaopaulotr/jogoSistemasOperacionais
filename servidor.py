@@ -30,9 +30,9 @@ jogo_iniciado = False
 def criar_tabuleiro_vazio():
     """Cria um tabuleiro 5x5 vazio para visualização"""
     tabuleiro = {}
-    linhas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    linhas = ['A', 'B', 'C', 'D', 'E', 'F']
     for linha in linhas:
-        for coluna in range(1, 8):
+        for coluna in range(1, 7):
             posicao = f"{linha}{coluna}"
             tabuleiro[posicao] = '~'  # Água (vazio)
     return tabuleiro
@@ -45,7 +45,7 @@ def validar_posicao(posicao):
     linha = posicao[0].upper()
     try:
         coluna = int(posicao[1:])
-        return linha in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] and 1 <= coluna <= 8
+        return linha in ['A', 'B', 'C', 'D', 'E', 'F'] and 1 <= coluna <= 6
     except:
         return False
 
@@ -125,7 +125,7 @@ def montar_visao_tabuleiro(numero_jogador):
             if pos in ataques_jogador2:
                 meu_tabuleiro[pos] = 'X'  # Tanque atingido
             else:
-                meu_tabuleiro[pos] = 'T'  # Tanque intacto
+                meu_tabuleiro[pos] = '⛵'  # Tanque intacto
        
         # Mostra meus erros
         for pos in ataques_jogador2:
@@ -145,7 +145,7 @@ def montar_visao_tabuleiro(numero_jogador):
             if pos in ataques_jogador1:
                 meu_tabuleiro[pos] = 'X'
             else:
-                meu_tabuleiro[pos] = 'T'
+                meu_tabuleiro[pos] = '⛵'
        
         for pos in ataques_jogador1:
             if pos not in tabuleiro_jogador2:
@@ -298,7 +298,7 @@ def gerenciar_cliente(conexao, numero_jogador):
     # Solicita posicionamento dos tanques
     mensagem_posicionar = {
         "tipo": "POSICIONAR",
-        "mensagem": "Posicione seus 3 tanques (formato: A1, B3, E5...H8)"
+        "mensagem": "Posicione seus 3 tanques (formato: A1, B3, F6)"
     }
     enviar_mensagem(conexao, mensagem_posicionar)
    
