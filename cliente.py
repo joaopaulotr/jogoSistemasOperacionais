@@ -37,7 +37,7 @@ def limpar_tela():
 def desenhar_tabuleiro(tabuleiro, titulo):
     """Desenha um tabuleiro formatado no terminal"""
     print(f"\n{titulo}")
-    print("   1  2  3  4  5 6 7 8")
+    print("   1  2  3  4  5  6  7  8")
     linhas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
     
     for linha in linhas:
@@ -103,7 +103,7 @@ def receber_mensagens(sock):
                     
                     elif tipo == "POSICIONAR":
                         print(f"\n{mensagem.get('mensagem')}")
-                        print("Digite as posições uma por vez (ex: A1, B3, E5)\n")
+                        print("Digite as posições uma por vez (ex: A1, B3, E5...H8)\n")
                         evento_posicionar.set()
                     
                     elif tipo == "OK":
@@ -203,7 +203,7 @@ def posicionar_tanques(sock):
     
     tanques_posicionados = 0
     
-    while tanques_posicionados < 3:0
+    while tanques_posicionados < 3:
         try:
             posicao = input(f"Tanque {tanques_posicionados + 1}/3: ").strip().upper()
             

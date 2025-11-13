@@ -30,9 +30,9 @@ jogo_iniciado = False
 def criar_tabuleiro_vazio():
     """Cria um tabuleiro 5x5 vazio para visualização"""
     tabuleiro = {}
-    linhas = ['A', 'B', 'C', 'D', 'E']
+    linhas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
     for linha in linhas:
-        for coluna in range(1, 6):
+        for coluna in range(1, 8):
             posicao = f"{linha}{coluna}"
             tabuleiro[posicao] = '~'  # Água (vazio)
     return tabuleiro
@@ -45,7 +45,7 @@ def validar_posicao(posicao):
     linha = posicao[0].upper()
     try:
         coluna = int(posicao[1:])
-        return linha in ['A', 'B', 'C', 'D', 'E'] and 1 <= coluna <= 5
+        return linha in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] and 1 <= coluna <= 8
     except:
         return False
 
@@ -298,7 +298,7 @@ def gerenciar_cliente(conexao, numero_jogador):
     # Solicita posicionamento dos tanques
     mensagem_posicionar = {
         "tipo": "POSICIONAR",
-        "mensagem": "Posicione seus 3 tanques (formato: A1, B3, E5)"
+        "mensagem": "Posicione seus 3 tanques (formato: A1, B3, E5...H8)"
     }
     enviar_mensagem(conexao, mensagem_posicionar)
    
