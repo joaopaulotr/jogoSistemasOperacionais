@@ -173,7 +173,7 @@ def receber_mensagens(sock):
                         if vencedor == f"Jogador {numero_jogador}":
                             print("     🏆 VITÓRIA! VOCÊ VENCEU A BATALHA! 🏆")
                         else:
-                            print(f"     💀 DERROTA! Seus {tanques_meus} tanques foram destruídos!")
+                            print(f"     💀 DERROTA! Seus tanques foram destruídos!")
                         print("=" * 50)
                         print("\nPressione Enter para sair...")
                         
